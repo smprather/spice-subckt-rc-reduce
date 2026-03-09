@@ -1,0 +1,8 @@
+* RC star/Y network for Y-to-delta testing
+* Three port nodes connected through a central internal node
+.SUBCKT rc_star p1 p2 p3
+R1 p1 center 100
+R2 p2 center 200
+R3 p3 center 300
+C1 center 0 10P
+.ENDS rc_star

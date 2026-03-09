@@ -1,0 +1,8 @@
+* RC pi network with parallel elements
+.SUBCKT rc_pi in out
+R1 in out 1K
+R2 in out 1K
+C1 in 0 5P
+C2 in 0 5P
+C3 out 0 10P
+.ENDS rc_pi

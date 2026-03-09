@@ -1,0 +1,10 @@
+* Mixed subcircuit with non-R/C elements that must pass through unchanged
+.SUBCKT passthrough VDD VSS IN OUT
+M1 OUT IN VDD VDD PMOS W=1U L=100N
+M2 OUT IN VSS VSS NMOS W=500N L=100N
+R1 VDD net1 50
+C1 net1 0 1P
+R2 net1 OUT 50
+Xbuf net1 net2 buffer
+C2 OUT VSS 2P
+.ENDS passthrough

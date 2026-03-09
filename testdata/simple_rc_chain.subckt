@@ -1,0 +1,13 @@
+* Simple RC chain for series reduction testing
+* port1 -- R1 -- n1 -- R2 -- n2 -- R3 -- port2
+*                 |           |
+*                C1          C2
+*                 |           |
+*                GND         GND
+.SUBCKT simple_rc_chain port1 port2
+R1 port1 n1 100
+C1 n1 0 1P
+R2 n1 n2 200
+C2 n2 0 2P
+R3 n2 port2 100
+.ENDS simple_rc_chain
