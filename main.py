@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from rcreduce.parser import parse_file, write_file
-from rcreduce.graph import from_subcircuit, to_subcircuit
+from rcreduce.graph import DEFAULT_GROUND_NAMES, from_subcircuit, to_subcircuit
 from rcreduce.ticer import reduce_ticer
 from rcreduce.merge import reduce_merge
 
@@ -36,11 +36,18 @@ def main():
         help="Target specific subcircuit by name",
     )
     parser.add_argument(
+        "--ground", nargs="*", default=None, metavar="NET",
+        help="Ground/power net names to protect from elimination "
+        f"(default: {' '.join(sorted(DEFAULT_GROUND_NAMES))})",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Print reduction statistics",
     )
 
     args = parser.parse_args()
+
+    ground_names = set(args.ground) if args.ground is not None else None
 
     spice_file = parse_file(args.input)
 
@@ -52,7 +59,7 @@ def main():
         if args.subckt and subckt.name != args.subckt:
             continue
 
-        graph = from_subcircuit(subckt)
+        graph = from_subcircuit(subckt, ground_names=ground_names)
         n_nodes_before = len(graph.nodes)
         n_elems_before = len(graph.elements)
 

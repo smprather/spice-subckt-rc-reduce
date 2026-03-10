@@ -66,6 +66,18 @@ class TestRCGraph:
         assert "0" in g.ground_nodes
         assert "GND" in g.ground_nodes
 
+    def test_custom_ground_names(self):
+        g = RCGraph(ground_names={"0", "VBP", "VBN"})
+        g.add_element(RCElement("R1", "R", 100.0, "n1", "VBP"))
+        g.add_element(RCElement("R2", "R", 100.0, "n2", "VBN"))
+        g.add_element(RCElement("R3", "R", 100.0, "n3", "GND"))
+        assert "VBP" in g.ground_nodes
+        assert "VBN" in g.ground_nodes
+        assert "GND" not in g.ground_nodes  # not in custom set
+        assert not g.is_internal("VBP")
+        assert not g.is_internal("VBN")
+        assert g.is_internal("GND")  # treated as internal with custom set
+
     def test_new_name(self):
         g = RCGraph()
         n1 = g.new_name("R")

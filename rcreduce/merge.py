@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .graph import RCGraph, RCElement
+from .graph import RCGraph, RCElement, merge_params
 
 
 def _merge_parallel_resistors(graph: RCGraph) -> bool:
@@ -29,11 +29,15 @@ def _merge_parallel_resistors(graph: RCGraph) -> bool:
                 continue
             new_value = 1.0 / conductance
 
+            # Conductance-weighted params
+            g_weights = [1.0 / r.value for r in resistors]
+            model, params = merge_params(resistors, g_weights)
+
             # Remove all, add one
             for r in resistors:
                 graph.remove_element(r.name)
             new_name = graph.new_name("R")
-            graph.add_element(RCElement(new_name, "R", new_value, pair[0], pair[1]))
+            graph.add_element(RCElement(new_name, "R", new_value, pair[0], pair[1], model, params))
             changed = True
 
     return changed
@@ -59,10 +63,13 @@ def _merge_parallel_capacitors(graph: RCGraph) -> bool:
 
             new_value = sum(c.value for c in caps)
 
+            c_weights = [c.value for c in caps]
+            model, params = merge_params(caps, c_weights)
+
             for c in caps:
                 graph.remove_element(c.name)
             new_name = graph.new_name("C")
-            graph.add_element(RCElement(new_name, "C", new_value, pair[0], pair[1]))
+            graph.add_element(RCElement(new_name, "C", new_value, pair[0], pair[1], model, params))
             changed = True
 
     return changed
@@ -97,13 +104,16 @@ def _merge_series_resistors(graph: RCGraph) -> bool:
 
         new_value = r1.value + r2.value
 
+        # Resistance-weighted params
+        model, params = merge_params([r1, r2], [r1.value, r2.value])
+
         graph.remove_element(r1.name)
         graph.remove_element(r2.name)
         graph.nodes.discard(node)
         graph.adjacency.pop(node, None)
 
         new_name = graph.new_name("R")
-        graph.add_element(RCElement(new_name, "R", new_value, other1, other2))
+        graph.add_element(RCElement(new_name, "R", new_value, other1, other2, model, params))
         changed = True
 
     return changed
@@ -138,13 +148,15 @@ def _merge_series_capacitors(graph: RCGraph) -> bool:
             continue
         new_value = 1.0 / (1.0 / c1.value + 1.0 / c2.value)
 
+        model, params = merge_params([c1, c2], [c1.value, c2.value])
+
         graph.remove_element(c1.name)
         graph.remove_element(c2.name)
         graph.nodes.discard(node)
         graph.adjacency.pop(node, None)
 
         new_name = graph.new_name("C")
-        graph.add_element(RCElement(new_name, "C", new_value, other1, other2))
+        graph.add_element(RCElement(new_name, "C", new_value, other1, other2, model, params))
         changed = True
 
     return changed

@@ -26,6 +26,9 @@ Single entry point at `spice_subckt_rc_reduce`.
 
 SPICE subcircuit models (`.subckt`) define circuit components with resistor-capacitor (RC) networks. RC reduction simplifies these networks while preserving electrical behavior, reducing simulation time.
 
+Resistors may have this format.
+`R6 n1 n2 res_mod R=1125.3 TC1=0.0001 TC2=0.0000006`
+
 ## Workflow
 
 - Keep `README.md` in sync with any changes to configuration, CLI options, usage, or behavior.

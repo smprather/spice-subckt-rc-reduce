@@ -25,6 +25,7 @@ uv run spice_subckt_rc_reduce input.subckt -o output.subckt [options]
 | `--tau` | TICER: time constant threshold | `1e-12` |
 | `--max-fill` | TICER: max fill-in edges per elimination | `6` |
 | `--r-threshold` | Merge: small resistor merge threshold | `0` (disabled) |
+| `--ground NET ...` | Ground/power net names to protect from elimination | `0 GND gnd VSS vss ...` |
 | `--subckt` | Target a specific subcircuit by name | all |
 | `-v, --verbose` | Print reduction statistics | off |
 
@@ -40,6 +41,12 @@ Merge-based reduction with small resistor elimination:
 
 ```
 uv run spice_subckt_rc_reduce input.subckt -o reduced.subckt -a merge --r-threshold 0.1 -v
+```
+
+Custom ground/power/bulk nets (replaces defaults):
+
+```
+uv run spice_subckt_rc_reduce input.subckt -o reduced.subckt --ground 0 VDD VSS VBP VBN
 ```
 
 ## Algorithms

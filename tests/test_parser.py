@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from rcreduce.parser import parse_file, write_file
+from rcreduce.parser import parse_file, write_file, _extract_rc_info
 
 TESTDATA = Path(__file__).parent.parent / "testdata"
 
@@ -59,6 +59,65 @@ class TestParseFile:
         assert len(subckt.ports) == 4
         # Should have many elements
         assert len(subckt.elements) > 100
+
+
+class TestModelParamFormat:
+    def test_r_with_model_and_params(self):
+        tokens = ["R6", "n1", "n2", "res_mod", "R=1125.3", "TC1=0.0001", "TC2=0.0000006"]
+        info = _extract_rc_info("R", tokens)
+        assert info is not None
+        assert info.value == pytest.approx(1125.3)
+        assert info.model == "res_mod"
+        assert info.params == {"TC1": "0.0001", "TC2": "0.0000006"}
+
+    def test_c_with_model_and_params(self):
+        tokens = ["C1", "n1", "n2", "cap_mod", "C=2.5P"]
+        info = _extract_rc_info("C", tokens)
+        assert info is not None
+        assert info.value == pytest.approx(2.5e-12)
+        assert info.model == "cap_mod"
+
+    def test_simple_value_still_works(self):
+        tokens = ["R1", "n1", "n2", "100"]
+        info = _extract_rc_info("R", tokens)
+        assert info is not None
+        assert info.value == pytest.approx(100.0)
+        assert info.model == ""
+
+    def test_simple_value_with_trailing_params(self):
+        tokens = ["R1", "n1", "n2", "100", "TC1=0.001"]
+        info = _extract_rc_info("R", tokens)
+        assert info is not None
+        assert info.value == pytest.approx(100.0)
+        assert info.params == {"TC1": "0.001"}
+
+    def test_no_value_returns_none(self):
+        tokens = ["R1", "n1", "n2", "res_mod", "TC1=0.0001"]
+        info = _extract_rc_info("R", tokens)
+        assert info is None
+
+    def test_model_param_file(self, tmp_path):
+        subckt = tmp_path / "model_rc.subckt"
+        subckt.write_text(
+            ".SUBCKT test_model a b\n"
+            "R1 a n1 res_mod R=500 TC1=0.001\n"
+            "C1 n1 0 cap_mod C=10P\n"
+            "R2 n1 b 200\n"
+            ".ENDS test_model\n"
+        )
+        sf = parse_file(subckt)
+        subckt_parsed = sf.subcircuits[0]
+        assert len(subckt_parsed.elements) == 3
+        r1 = subckt_parsed.elements[0]
+        assert r1.value == pytest.approx(500.0)
+        assert r1.model == "res_mod"
+        assert r1.params == {"TC1": "0.001"}
+        c1 = subckt_parsed.elements[1]
+        assert c1.value == pytest.approx(10e-12)
+        assert c1.model == "cap_mod"
+        r2 = subckt_parsed.elements[2]
+        assert r2.value == pytest.approx(200.0)
+        assert r2.model == ""
 
 
 class TestWriteFile:

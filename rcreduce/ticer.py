@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import heapq
 
-from .graph import RCGraph, RCElement
+from .graph import RCGraph, RCElement, merge_params
 
 
 def _compute_tau(graph: RCGraph, node: str) -> float:
@@ -153,10 +153,12 @@ def _combine_parallel_resistors_at_neighbors(
             g_total = sum(1.0 / r.value for r in resistors if r.value > 0)
             if g_total <= 0:
                 continue
+            g_weights = [1.0 / r.value for r in resistors]
+            model, params = merge_params(resistors, g_weights)
             for r in resistors:
                 graph.remove_element(r.name)
             name = graph.new_name("R")
-            graph.add_element(RCElement(name, "R", 1.0 / g_total, ni, nj))
+            graph.add_element(RCElement(name, "R", 1.0 / g_total, ni, nj, model, params))
 
 
 def reduce_ticer(

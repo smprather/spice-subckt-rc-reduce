@@ -117,3 +117,46 @@ class TestRCPiReduction:
         # C1+C2 at in, C3 at out — only C1||C2 should merge
         caps = [e for e in g.elements.values() if e.etype == "C"]
         assert len(caps) == 2
+
+
+class TestParamMerge:
+    def test_parallel_r_conductance_weighted_params(self):
+        """Parallel merge: params weighted by conductance (1/R)."""
+        g = RCGraph(port_nodes=["a", "b"])
+        g.add_element(RCElement("R1", "R", 100.0, "a", "b", "mod",
+                                {"TC1": "0.001", "TC2": "0.0001"}))
+        g.add_element(RCElement("R2", "R", 100.0, "a", "b", "mod",
+                                {"TC1": "0.003", "TC2": "0.0001"}))
+        reduce_merge(g)
+        r = [e for e in g.elements.values() if e.etype == "R"]
+        assert len(r) == 1
+        assert r[0].model == "mod"
+        # Equal R → equal conductance → simple average
+        assert float(r[0].params["TC1"]) == pytest.approx(0.002)
+        assert float(r[0].params["TC2"]) == pytest.approx(0.0001)
+
+    def test_series_r_resistance_weighted_params(self):
+        """Series merge: params weighted by resistance."""
+        g = RCGraph(port_nodes=["a", "b"])
+        # R1=100 with TC1=0.001, R2=300 with TC1=0.003
+        g.add_element(RCElement("R1", "R", 100.0, "a", "n1", "mod",
+                                {"TC1": "0.001"}))
+        g.add_element(RCElement("R2", "R", 300.0, "n1", "b", "mod",
+                                {"TC1": "0.003"}))
+        reduce_merge(g)
+        r = [e for e in g.elements.values() if e.etype == "R"]
+        assert len(r) == 1
+        assert r[0].value == pytest.approx(400.0)
+        # Weighted: (100*0.001 + 300*0.003) / 400 = (0.1 + 0.9) / 400 = 0.0025
+        assert float(r[0].params["TC1"]) == pytest.approx(0.0025)
+
+    def test_mixed_models_drops_model(self):
+        """When merging elements with different models, drop the model."""
+        g = RCGraph(port_nodes=["a", "b"])
+        g.add_element(RCElement("R1", "R", 100.0, "a", "b", "mod_a",
+                                {"TC1": "0.001"}))
+        g.add_element(RCElement("R2", "R", 100.0, "a", "b", "mod_b",
+                                {"TC1": "0.003"}))
+        reduce_merge(g)
+        r = [e for e in g.elements.values() if e.etype == "R"]
+        assert r[0].model == ""

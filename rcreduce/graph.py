@@ -5,9 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .parser import Subcircuit, Element
-from .value import format_value
 
-GROUND_NAMES = frozenset({"0", "GND", "gnd", "Gnd", "VSS", "vss", "Vss"})
+DEFAULT_GROUND_NAMES = frozenset({"0", "GND", "gnd", "Gnd", "VSS", "vss", "Vss"})
 
 
 @dataclass
@@ -18,14 +17,23 @@ class RCElement:
     value: float
     node_a: str
     node_b: str
+    model: str = ""
+    params: dict[str, str] = field(default_factory=dict)
 
 
 class RCGraph:
     """Adjacency-based RC multigraph."""
 
-    def __init__(self, port_nodes: list[str] | None = None):
+    def __init__(
+        self,
+        port_nodes: list[str] | None = None,
+        ground_names: set[str] | None = None,
+    ):
         self.nodes: set[str] = set()
         self.port_nodes: set[str] = set(port_nodes or [])
+        self._ground_names: set[str] = (
+            ground_names if ground_names is not None else set(DEFAULT_GROUND_NAMES)
+        )
         self.ground_nodes: set[str] = set()
         self.elements: dict[str, RCElement] = {}  # name -> element
         self.adjacency: dict[str, set[str]] = {}  # node -> set of element names
@@ -36,7 +44,7 @@ class RCGraph:
         if node not in self.nodes:
             self.nodes.add(node)
             self.adjacency[node] = set()
-            if node in GROUND_NAMES:
+            if node in self._ground_names:
                 self.ground_nodes.add(node)
 
     def add_element(self, elem: RCElement) -> None:
@@ -119,9 +127,51 @@ class RCGraph:
         return result
 
 
-def from_subcircuit(subckt: Subcircuit) -> RCGraph:
+def merge_params(elements: list[RCElement], weights: list[float]) -> tuple[str, dict[str, str]]:
+    """Compute weighted-average params and pick model from merged elements.
+
+    Returns (model, params) where params values are formatted as strings.
+    For series R: weight by resistance. For parallel R: weight by conductance.
+    """
+    # Model: use the common model if all agree, otherwise drop it
+    models = {e.model for e in elements if e.model}
+    model = models.pop() if len(models) == 1 else ""
+
+    # Collect all param keys
+    all_keys: set[str] = set()
+    for e in elements:
+        all_keys.update(e.params.keys())
+
+    if not all_keys:
+        return model, {}
+
+    w_total = sum(weights)
+    if w_total <= 0:
+        return model, {}
+
+    params: dict[str, str] = {}
+    for key in sorted(all_keys):
+        weighted_sum = 0.0
+        for e, w in zip(elements, weights):
+            val_str = e.params.get(key)
+            if val_str is not None:
+                try:
+                    weighted_sum += float(val_str) * w
+                except ValueError:
+                    break
+            # Elements missing a param contribute 0 (implicit default)
+        else:
+            avg = weighted_sum / w_total
+            params[key] = f"{avg:.6g}"
+
+    return model, params
+
+
+def from_subcircuit(
+    subckt: Subcircuit, ground_names: set[str] | None = None,
+) -> RCGraph:
     """Build an RCGraph from a parsed Subcircuit."""
-    graph = RCGraph(port_nodes=subckt.ports)
+    graph = RCGraph(port_nodes=subckt.ports, ground_names=ground_names)
     # Ensure all port nodes exist in the graph even if no R/C connects to them
     for port in subckt.ports:
         graph._ensure_node(port)
@@ -133,6 +183,8 @@ def from_subcircuit(subckt: Subcircuit) -> RCGraph:
                 value=elem.value,
                 node_a=elem.nodes[0],
                 node_b=elem.nodes[1],
+                model=elem.model,
+                params=dict(elem.params),
             )
             graph.add_element(rc)
         else:
@@ -152,7 +204,8 @@ def to_subcircuit(graph: RCGraph, original: Subcircuit) -> Subcircuit:
             element_type=rc.etype,
             nodes=[rc.node_a, rc.node_b],
             value=rc.value,
-            raw_line=f"{rc.name} {rc.node_a} {rc.node_b} {format_value(rc.value)}",
+            model=rc.model,
+            params=dict(rc.params),
         ))
 
     # Add passthrough elements
