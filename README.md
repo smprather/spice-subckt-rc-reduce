@@ -49,11 +49,22 @@ Custom ground/power/bulk nets (replaces defaults):
 uv run spice_subckt_rc_reduce input.subckt -o reduced.subckt --ground 0 VDD VSS VBP VBN
 ```
 
+## Node Protection
+
+Nodes are never eliminated if they are:
+- **Subcircuit ports** (from the `.SUBCKT` line)
+- **Ground/power nets** (configurable via `--ground`)
+- **Connected to non-R/C elements** (X instances, MOSFETs, diodes, etc.)
+
+This ensures that nets referenced by device instances (e.g. X subcircuit wrappers from foundry models) are preserved in the reduced output.
+
 ## Algorithms
 
 **TICER** — Eliminates internal nodes ordered by time constant (τ = R_eff × C_node). Nodes with τ below the threshold are removed via series combination (degree 2), Y-to-Δ transform (degree 3), or star-to-mesh (degree ≥ 4). Capacitance is redistributed to neighbors proportional to conductance.
 
 **Merge** — Iteratively applies five rules to fixed-point: parallel R merge, parallel C merge, series R merge, series C merge, and small R node collapse.
+
+Both algorithms preserve model names and weighted-average temperature coefficients (TC1, TC2, etc.) when merging resistors.
 
 ## Development
 

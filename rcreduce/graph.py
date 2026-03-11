@@ -189,6 +189,10 @@ def from_subcircuit(
             graph.add_element(rc)
         else:
             graph.passthrough_elements.append(elem)
+            # Protect nodes referenced by non-R/C elements from elimination
+            for node in elem.nodes:
+                graph._ensure_node(node)
+                graph.port_nodes.add(node)
     return graph
 
 

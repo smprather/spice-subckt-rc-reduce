@@ -102,6 +102,23 @@ def _extract_rc_info(etype: str, tokens: list[str]) -> _RCParseResult | None:
     return _RCParseResult(value=value, model=model, params=params)
 
 
+# Number of net nodes per SPICE element type (excludes name, model, params).
+_ELEMENT_NODE_COUNT = {
+    "M": 4,  # MOSFET: drain gate source bulk
+    "Q": 3,  # BJT: collector base emitter (substrate optional but rare in subckt)
+    "D": 2,  # Diode: anode cathode
+    "J": 3,  # JFET: drain gate source
+    "L": 2,  # Inductor: node1 node2
+    "V": 2,  # Voltage source: pos neg
+    "I": 2,  # Current source: pos neg
+    "E": 4,  # VCVS: n+ n- nc+ nc-
+    "F": 2,  # CCCS: n+ n- (+ vname)
+    "G": 4,  # VCCS: n+ n- nc+ nc-
+    "H": 2,  # CCVS: n+ n- (+ vname)
+}
+# X (subcircuit instance) excluded — variable node count, handled separately.
+
+
 def _parse_element(line: str) -> Element:
     """Parse a single element line into an Element."""
     stripped = line.strip()
@@ -127,10 +144,38 @@ def _parse_element(line: str) -> Element:
             name=name, element_type=etype, nodes=[node_a, node_b],
             raw_line=stripped,
         )
-    else:
-        # Passthrough: extract nodes heuristically but keep raw line
+    elif etype == "X":
+        # Subcircuit instance: X<name> node1 node2 ... subckt_name [params]
+        # Nodes are all tokens between name and the subckt name/params.
+        # The last non-param token is the subcircuit name; everything before it is a node.
+        rest = tokens[1:]
+        # Find where params start (token containing '=')
+        param_start = len(rest)
+        for i, tok in enumerate(rest):
+            if "=" in tok:
+                param_start = i
+                break
+        # Last token before params is subckt name, everything before that is nodes
+        if param_start > 1:
+            nodes = rest[: param_start - 1]
+        elif len(rest) > 1:
+            nodes = rest[:-1]
+        else:
+            nodes = []
         return Element(
-            name=name, element_type=etype, nodes=tokens[1:],
+            name=name, element_type=etype, nodes=nodes,
+            raw_line=stripped,
+        )
+    else:
+        # Passthrough: extract the correct number of net nodes by element type.
+        # Remaining tokens are model/params and stored only in raw_line.
+        node_count = _ELEMENT_NODE_COUNT.get(etype)
+        if node_count is not None and len(tokens) > node_count:
+            nodes = tokens[1 : 1 + node_count]
+        else:
+            nodes = []
+        return Element(
+            name=name, element_type=etype, nodes=nodes,
             raw_line=stripped,
         )
 
